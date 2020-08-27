@@ -1,0 +1,100 @@
+### importing libraries ###
+import re
+import nltk
+
+nltk.download('stopwords')
+import spacy
+import pandas as pd
+
+
+################ DATA PREPROCESSING ################
+class Cleaned_data(object):
+
+    def data_cleaned(self, word_predict):
+        data = pd.read_csv("Wikipedia Text.csv", sep=',')  # create a function and call it
+        data = data[1:].reset_index(drop=True)
+
+        ''' 1.  remove brackets
+             2.  Tokenisation 
+             3.  remove numbers + fotenotes
+             4.  Converting the headline to lowercase letters
+             5.  remove words with 1 or 2 letters (but be careful if on/in matters)
+             6.  include only enlgish words
+             7.  select only alphabetic letters
+             8.  Lemmatization
+             9.  exclude stopwords'''
+
+        ''' 1.  remove brackets
+             2.  Tokenisation 
+             3.  remove numbers + fotenotes
+             4.  Converting the headline to lowercase letters'''
+
+        for i in range(len(data["Documents"])):
+            data["Documents"][i] = str(data["Documents"][i]).replace("\n", "").replace("\''", "").replace("=", "").replace(
+                "[", " ").replace("]", " ").replace("(", " ").replace(")", " ").split(" ")
+            lists = [x for x in data["Documents"][i] if not any(c.isdigit() for c in x)]
+            data["Documents"][i] = [item.lower() for item in lists]
+            data["Documents"][i] = str(' '.join(data["Documents"][i]))
+            data["Documents"][i] = data["Documents"][i].split(".")
+
+            ### 5. remove words with 1 or 2 letters ####
+
+            shortword_1 = re.compile(r'\W*\b\w{2}\b')
+            shortword_2 = re.compile(r'\W*\b\w{1}\b')
+
+            for j in range(len(data["Documents"][i])):
+                data["Documents"][i][j] = " ".join(re.findall("[a-zA-Z]+", data["Documents"][i][j]))
+                data["Documents"][i][j] = shortword_1.sub('', data["Documents"][i][j])
+                data["Documents"][i][j] = shortword_2.sub('', data["Documents"][i][j])
+
+        ### select only alphabetic letters ###
+
+        for i in range(len(data["Documents"])):
+            data["Documents"][i] = "".join(data["Documents"][i]).replace('[^\w\s]', '')
+
+        ### LEMMATISATION ###
+
+        nlp_lemma = spacy.load("en_core_web_sm")
+
+        for i in range(len(data["Documents"])):
+            lemma_word = []
+            for word in nlp_lemma(data["Documents"][i]):
+                lemma_word.append(word.lemma_)
+            data["Documents"][i] = lemma_word
+
+        ## Include only English Dictionary ##
+
+        from spacy.lang.en import English
+        nlp = English()
+
+        for i in range(len(data["Documents"])):
+            data["Documents"][i] = " ".join(data["Documents"][i])
+        for i in range(len(data["Documents"])):
+            data["Documents"][i] = nlp(data["Documents"][i])
+
+        ## Removing Stopwords from our Data ##
+        for i in range(len(data["Documents"])):
+            filtered_sent = []
+            for word in data["Documents"][i]:
+                if not word.is_stop:
+                    filtered_sent.append(word)
+            data["Documents"][i] = filtered_sent
+
+        for i in range(len(data["Documents"])):
+            token_list = []
+            for token in data["Documents"][i]:
+                token_list.append(token.text)
+            data["Documents"][i] = token_list
+
+        ## WORD FREQUENCY ##
+
+        data["dinosaur_count"] = data["Documents"].apply(lambda x: x.count(word_predict))
+        data['word_count'] = data["Documents"].apply(lambda x: len(str(x).split(" ")))
+        data['char_count'] = (data["Documents"].apply(lambda x: " ".join([word for word in x]))).str.len()
+
+        ## Exclude the word "Dinosaur" from the documents for prediction purposes ##
+
+        for i in range(len(data["Documents"])):
+            data["Documents"][i] = [words.replace("dinosaur", "") for words in data["Documents"][i]]
+
+        return data
